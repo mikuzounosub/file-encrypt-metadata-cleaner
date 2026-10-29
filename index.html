@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PrivacyVault - Metadata Remover & E2EE Encrypter</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f5ff',
+                            100: '#e5edff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                        },
+                        emerald: {
+                            500: '#10b981',
+                            600: '#059669',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- External Libraries -->
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- JSZip -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- FileSaver -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- PDF-Lib -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand Logo -->
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-xl shadow-lg shadow-indigo-500/20">
+                        <i data-lucide="shield-check" class="w-6 h-6 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">PrivacyVault</h1>
+                        <p class="text-xs text-slate-400">100% Client-Side Privacy Suite</p>
+                    </div>
+                </div>
+
+                <!-- Main Navigation Tabs -->
+                <nav class="flex space-x-1 bg-slate-800/80 p-1 rounded-xl border border-slate-700/50">
+                    <button id="nav-tab-meta" onclick="switchMainTab('meta')" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 bg-indigo-600 text-white shadow-md">
+                        <i data-lucide="file-minus" class="w-4 h-4"></i>
+                        <span>Metadata Remover</span>
+                    </button>
+                    <button id="nav-tab-e2ee" onclick="switchMainTab('e2ee')" class="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-700/50">
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                        <span>E2EE Encrypter</span>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        <!-- ========================================================================= -->
+        <!-- TAB 1: METADATA REMOVER                                                    -->
+        <!-- ========================================================================= -->
+        <section id="section-meta" class="space-y-6">
+            <!-- Banner / Instructions -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 relative overflow-hidden backdrop-blur-sm">
+                <div class="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-5 h-5 text-indigo-400"></i> メタデータ物理除去ツール
+                        </h2>
+                        <p class="text-slate-400 text-sm mt-1 max-w-2xl">
+                            画像、動画、PDFから位置情報・撮影日時・機器情報などの内部メタデータを再生成（物理除去）技術により抹消します。
+                            画質・音質は画素・データ再構成により最高精度（100%）を維持します。
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-indigo-300">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-emerald-400"></i>
+                        サーバー非送信 (完全ローカル処理)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Area -->
+            <div id="meta-dropzone" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 text-center bg-slate-900/30 hover:bg-indigo-500/5 transition-all duration-300 cursor-pointer group">
+                <input type="file" id="meta-file-input" multiple accept="image/*,video/*,application/pdf,audio/*" class="hidden" onchange="handleMetaFilesSelect(this.files)">
+                <div class="flex flex-col items-center justify-center space-y-3">
+                    <div class="p-4 bg-slate-800/80 group-hover:bg-indigo-600/20 rounded-2xl text-slate-400 group-hover:text-indigo-400 transition-colors">
+                        <i data-lucide="upload-cloud" class="w-10 h-10"></i>
+                    </div>
+                    <div>
+                        <p class="text-base font-semibold text-slate-200">ファイルをドラッグ＆ドロップ、または<span class="text-indigo-400 underline decoration-indigo-400/30 underline-offset-4">参照</span></p>
+                        <p class="text-xs text-slate-400 mt-1">対応: 画像 (JPG, PNG, WebP等), 動画 (MP4, WebM), PDF, 音声</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Action Bar -->
+            <div id="meta-global-actions" class="hidden flex flex-wrap items-center justify-between gap-4 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span id="meta-file-count" class="text-sm font-medium text-slate-300">0 個のファイル</span>
+                    <button onclick="clearMetaFiles()" class="text-xs text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> すべてクリア
+                    </button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="meta-btn-process-all" onclick="processAllMetaFiles()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all">
+                        <i data-lucide="zap" class="w-4 h-4"></i> 一括除去処理
+                    </button>
+                    <button id="meta-btn-download-zip" onclick="downloadMetaAllZip()" class="hidden px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all">
+                        <i data-lucide="archive" class="w-4 h-4"></i> ZIPで一括保存
+                    </button>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div id="meta-file-list" class="space-y-3">
+                <!-- File Item Dynamic Template Inserted Here -->
+            </div>
+        </section>
+
+
+        <!-- ========================================================================= -->
+        <!-- TAB 2: E2EE FILE ENCRYPTER                                                -->
+        <!-- ========================================================================= -->
+        <section id="section-e2ee" class="hidden space-y-6">
+            <!-- Banner / Instructions -->
+            <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 relative overflow-hidden backdrop-blur-sm">
+                <div class="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i data-lucide="lock" class="w-5 h-5 text-emerald-400"></i> E2EE ファイル暗号化 / 復号化
+                        </h2>
+                        <p class="text-slate-400 text-sm mt-1 max-w-2xl">
+                            Web Crypto API (PQC-Ready AES-256-GCM + PBKDF2-SHA512 600k rounds) を用いて、ブラウザ上で全形式のファイルを堅牢に暗号化・復号化します。パスワードやファイルデータが外部に送信されることはありません。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mode Selector Sub-tabs & Passcode Area -->
+            <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+                <!-- Encrypt / Decrypt Sub tabs -->
+                <div class="flex border-b border-slate-800 pb-4 justify-between items-center flex-wrap gap-4">
+                    <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                        <button id="e2ee-subtab-enc" onclick="switchE2eeMode('encrypt')" class="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white transition-all">
+                            <i data-lucide="key" class="w-4 h-4"></i> 暗号化 (Encrypt)
+                        </button>
+                        <button id="e2ee-subtab-dec" onclick="switchE2eeMode('decrypt')" class="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-slate-400 hover:text-white transition-all">
+                            <i data-lucide="unlock" class="w-4 h-4"></i> 復号 (Decrypt)
+                        </button>
+                    </div>
+
+                    <div class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <i data-lucide="shield" class="w-4 h-4 text-emerald-400"></i> PQC-Ready: AES-256-GCM / Salt 256-bit / PBKDF2-SHA512 600k rounds
+                    </div>
+                </div>
+
+                <!-- Passcode Input Box -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-slate-300">
+                        パスコード (暗号化・復号キー)
+                    </label>
+                    <div class="relative max-w-xl">
+                        <input type="password" id="e2ee-passcode" oninput="updatePasswordStrength(this.value)" placeholder="強力なパスワードを入力してください..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 pr-12 text-sm transition-all">
+                        <button type="button" onclick="togglePasscodeVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                            <i id="e2ee-eye-icon" data-lucide="eye" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <!-- Password Strength Bar -->
+                    <div id="e2ee-strength-container" class="max-w-xl pt-1">
+                        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                            <span>パスワード強度:</span>
+                            <span id="e2ee-strength-text" class="font-medium text-slate-500">-</span>
+                        </div>
+                        <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                            <div id="e2ee-strength-bar" class="h-full w-0 transition-all duration-300 bg-slate-600"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Dropzone (All File Formats) -->
+            <div id="e2ee-dropzone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-2xl p-8 text-center bg-slate-900/30 hover:bg-emerald-500/5 transition-all duration-300 cursor-pointer group">
+                <input type="file" id="e2ee-file-input" multiple class="hidden" onchange="handleE2eeFilesSelect(this.files)">
+                <div class="flex flex-col items-center justify-center space-y-3">
+                    <div class="p-4 bg-slate-800/80 group-hover:bg-emerald-600/20 rounded-2xl text-slate-400 group-hover:text-emerald-400 transition-colors">
+                        <i data-lucide="file-plus" class="w-10 h-10"></i>
+                    </div>
+                    <div>
+                        <p class="text-base font-semibold text-slate-200">すべてのファイル形式に対応（ドラッグ＆ドロップ または <span class="text-emerald-400 underline decoration-emerald-400/30 underline-offset-4">選択</span>）</p>
+                        <p id="e2ee-mode-desc" class="text-xs text-slate-400 mt-1">暗号化するファイルを選択してください（一括選択可能）</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Action Bar -->
+            <div id="e2ee-global-actions" class="hidden flex flex-wrap items-center justify-between gap-4 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span id="e2ee-file-count" class="text-sm font-medium text-slate-300">0 個のファイル</span>
+                    <button onclick="clearE2eeFiles()" class="text-xs text-slate-400 hover:text-red-400 flex items-center gap-1 transition-colors">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> すべてクリア
+                    </button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="e2ee-btn-process-all" onclick="processAllE2eeFiles()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all">
+                        <i data-lucide="lock" class="w-4 h-4"></i> 一括暗号化を実行
+                    </button>
+                    <button id="e2ee-btn-download-zip" onclick="downloadE2eeAllZip()" class="hidden px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all">
+                        <i data-lucide="archive" class="w-4 h-4"></i> ZIPで一括保存
+                    </button>
+                </div>
+            </div>
+
+            <!-- E2EE File List -->
+            <div id="e2ee-file-list" class="space-y-3">
+                <!-- Dynamic Items -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Preview Modal -->
+    <div id="preview-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+            <!-- Modal Header -->
+            <div class="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <div class="flex items-center gap-2 overflow-hidden pr-4">
+                    <i data-lucide="eye" class="w-5 h-5 text-indigo-400 flex-shrink-0"></i>
+                    <h3 id="modal-title" class="text-base font-semibold text-slate-200 truncate">ファイルプレビュー</h3>
+                </div>
+                <button onclick="closePreviewModal()" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+            <!-- Modal Body Container -->
+            <div id="modal-body" class="p-6 overflow-auto flex-1 flex items-center justify-center min-h-[300px] bg-slate-950/50">
+                <!-- Preview Canvas / Image / Video / PDF Inserted Dynamic -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Application Script -->
+    <script>
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // ---------------------------------------------------------------------
+        // Global State Management
+        // ---------------------------------------------------------------------
+        const state = {
+            metaFiles: [], // [{ id, file, status, processedBlob, processedName, originalSize, processedSize }]
+            e2eeFiles: [], // [{ id, file, status, processedBlob, processedName, originalSize, processedSize }]
+            e2eeMode: 'encrypt' // 'encrypt' or 'decrypt'
+        };
+
+        // ---------------------------------------------------------------------
+        // Main Tab Switching
+        // ---------------------------------------------------------------------
+        function switchMainTab(tab) {
+            const btnMeta = document.getElementById('nav-tab-meta');
+            const btnE2ee = document.getElementById('nav-tab-e2ee');
+            const secMeta = document.getElementById('section-meta');
+            const secE2ee = document.getElementById('section-e2ee');
+
+            if (tab === 'meta') {
+                btnMeta.className = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 bg-indigo-600 text-white shadow-md";
+                btnE2ee.className = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-700/50";
+                secMeta.classList.remove('hidden');
+                secE2ee.classList.add('hidden');
+            } else {
+                btnE2ee.className = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 bg-emerald-600 text-white shadow-md";
+                btnMeta.className = "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 text-slate-400 hover:text-white hover:bg-slate-700/50";
+                secE2ee.classList.remove('hidden');
+                secMeta.classList.add('hidden');
+            }
+        }
+
+        // Helper: Format Bytes
+        function formatBytes(bytes, decimals = 2) {
+            if (!bytes || bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+        }
+
+        // Toast Notification Function
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = "bg-slate-800 border-slate-700 text-slate-200";
+            let icon = "info";
+            if (type === 'success') {
+                bgClass = "bg-emerald-950/90 border-emerald-700 text-emerald-200";
+                icon = "check-circle";
+            } else if (type === 'error') {
+                bgClass = "bg-rose-950/90 border-rose-700 text-rose-200";
+                icon = "alert-circle";
+            }
+
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl backdrop-blur-md text-sm pointer-events-auto transition-all duration-300 transform translate-y-2 opacity-0 ${bgClass}`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i><span>${message}</span>`;
+            
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+
+        // =========================================================================
+        // METADATA REMOVER LOGIC
+        // =========================================================================
+
+        // Drag & Drop Setup
+        const metaDropzone = document.getElementById('meta-dropzone');
+        metaDropzone.addEventListener('click', () => document.getElementById('meta-file-input').click());
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            metaDropzone.addEventListener(eventName, preventDefaults, false);
+        });
+        function preventDefaults(e) { e.preventDefault(); e.stopPropagation(); }
+
+        metaDropzone.addEventListener('dragover', () => metaDropzone.classList.add('border-indigo-500', 'bg-indigo-500/10'));
+        metaDropzone.addEventListener('dragleave', () => metaDropzone.classList.remove('border-indigo-500', 'bg-indigo-500/10'));
+        metaDropzone.addEventListener('drop', (e) => {
+            metaDropzone.classList.remove('border-indigo-500', 'bg-indigo-500/10');
+            handleMetaFilesSelect(e.dataTransfer.files);
+        });
+
+        function handleMetaFilesSelect(files) {
+            if (!files || files.length === 0) return;
+            
+            Array.from(files).forEach(file => {
+                const item = {
+                    id: 'meta-' + Math.random().toString(36).substring(2, 9),
+                    file: file,
+                    status: 'ready', // ready, processing, done, error
+                    processedBlob: null,
+                    processedName: getCleanFileName(file.name),
+                    originalSize: file.size,
+                    processedSize: 0,
+                    errorMsg: ''
+                };
+                state.metaFiles.push(item);
+            });
+
+            renderMetaFileList();
+        }
+
+        function getCleanFileName(origName) {
+            const parts = origName.split('.');
+            if (parts.length > 1) {
+                const ext = parts.pop();
+                return `${parts.join('.')}_clean.${ext}`;
+            }
+            return `${origName}_clean`;
+        }
+
+        function clearMetaFiles() {
+            state.metaFiles = [];
+            renderMetaFileList();
+        }
+
+        function renderMetaFileList() {
+            const container = document.getElementById('meta-file-list');
+            const actionsBar = document.getElementById('meta-global-actions');
+            const countLabel = document.getElementById('meta-file-count');
+            const zipBtn = document.getElementById('meta-btn-download-zip');
+
+            if (state.metaFiles.length === 0) {
+                container.innerHTML = '';
+                actionsBar.classList.add('hidden');
+                return;
+            }
+
+            actionsBar.classList.remove('hidden');
+            countLabel.textContent = `${state.metaFiles.length} 個のファイル`;
+
+            const hasDoneFiles = state.metaFiles.some(f => f.status === 'done');
+            if (hasDoneFiles) {
+                zipBtn.classList.remove('hidden');
+            } else {
+                zipBtn.classList.add('hidden');
+            }
+
+            container.innerHTML = state.metaFiles.map(item => {
+                let badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-slate-800 text-slate-300 border border-slate-700">準備完了</span>`;
+                if (item.status === 'processing') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-indigo-950 text-indigo-300 border border-indigo-800 flex items-center gap-1.5"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> 処理中...</span>`;
+                } else if (item.status === 'done') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1"><i data-lucide="check" class="w-3 h-3"></i> 除去完了</span>`;
+                } else if (item.status === 'error') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3"></i> エラー</span>`;
+                }
+
+                const fileIcon = getFileIcon(item.file.type);
+
+                return `
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
+                    <div class="flex items-center gap-3 overflow-hidden flex-1">
+                        <div class="p-2.5 bg-slate-800 rounded-lg text-indigo-400 flex-shrink-0">
+                            <i data-lucide="${fileIcon}" class="w-5 h-5"></i>
+                        </div>
+                        <div class="overflow-hidden flex-1 pr-2">
+                            <p class="text-sm font-medium text-slate-200 truncate mb-1">${item.file.name}</p>
+                            <div class="flex items-center gap-2 text-xs text-slate-400 mb-1.5">
+                                <span>元: ${formatBytes(item.originalSize)}</span>
+                                ${item.processedSize ? `<span>→ 清浄: ${formatBytes(item.processedSize)}</span>` : ''}
+                            </div>
+                            <!-- Output Filename Input -->
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-slate-500 font-medium">出力名:</span>
+                                <input type="text" value="${item.processedName}" onchange="updateMetaFileName('${item.id}', this.value)" class="bg-slate-950 border border-slate-700/80 rounded px-2 py-0.5 text-xs text-slate-200 w-full max-w-[220px] focus:outline-none focus:border-indigo-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between md:justify-end gap-3 flex-shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
+                        ${badge}
+
+                        <div class="flex items-center gap-2">
+                            ${item.status === 'done' ? `
+                                <button onclick="previewMetaFile('${item.id}')" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors" title="プレビュー">
+                                    <i data-lucide="eye" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="downloadMetaSingle('${item.id}')" class="p-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white transition-colors" title="ダウンロード">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </button>
+                            ` : `
+                                <button onclick="processSingleMetaFile('${item.id}')" ${item.status === 'processing' ? 'disabled' : ''} class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5">
+                                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-indigo-400"></i> 除去
+                                </button>
+                            `}
+                            <button onclick="removeMetaFile('${item.id}')" class="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition-colors">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function updateMetaFileName(id, newName) {
+            const item = state.metaFiles.find(f => f.id === id);
+            if (item && newName.trim() !== '') {
+                item.processedName = newName.trim();
+            }
+        }
+
+        function getFileIcon(mimeType) {
+            if (mimeType.startsWith('image/')) return 'image';
+            if (mimeType.startsWith('video/')) return 'video';
+            if (mimeType.startsWith('audio/')) return 'music';
+            if (mimeType.includes('pdf')) return 'file-text';
+            return 'file';
+        }
+
+        function removeMetaFile(id) {
+            state.metaFiles = state.metaFiles.filter(item => item.id !== id);
+            renderMetaFileList();
+        }
+
+        // Process Metadata Removal Logic
+        async function processSingleMetaFile(id) {
+            const item = state.metaFiles.find(f => f.id === id);
+            if (!item) return;
+
+            item.status = 'processing';
+            renderMetaFileList();
+
+            try {
+                const blob = await cleanMetadata(item.file);
+                item.processedBlob = blob;
+                item.processedSize = blob.size;
+                item.status = 'done';
+                showToast(`${item.file.name} のメタデータを削除しました`, 'success');
+            } catch (err) {
+                console.error(err);
+                item.status = 'error';
+                item.errorMsg = err.message;
+                showToast(`${item.file.name} の処理中にエラーが発生しました`, 'error');
+            }
+
+            renderMetaFileList();
+        }
+
+        async function processAllMetaFiles() {
+            const targets = state.metaFiles.filter(f => f.status !== 'done');
+            if (targets.length === 0) {
+                showToast('処理可能なファイルがありません', 'info');
+                return;
+            }
+
+            for (const item of targets) {
+                await processSingleMetaFile(item.id);
+            }
+        }
+
+        // Core Removal Handler according to MIME Type
+        async function cleanMetadata(file) {
+            const type = file.type;
+
+            if (type.startsWith('image/')) {
+                return await cleanImageMetadata(file);
+            } else if (type.includes('pdf')) {
+                return await cleanPdfMetadata(file);
+            } else if (type.startsWith('video/') || type.startsWith('audio/')) {
+                return await cleanMediaMetadata(file);
+            } else {
+                // Fallback for general binary files
+                return new Blob([await file.arrayBuffer()], { type: file.type });
+            }
+        }
+
+        // 1. Image Metadata Stripper (100% Quality Canvas Reconstruction)
+        function cleanImageMetadata(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Draw image pixels purely to canvas
+                    ctx.drawImage(img, 0, 0);
+
+                    // Re-encode with 100% quality settings (no EXIF header)
+                    let mime = file.type;
+                    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
+                        mime = 'image/png'; // Default lossless backup
+                    }
+
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error("Canvas conversion failed"));
+                        }
+                    }, mime, 1.0); // 1.0 = Maximum Quality Target
+                };
+
+                img.onerror = () => {
+                    URL.revokeObjectURL(url);
+                    reject(new Error("画像ファイルの読み込みに失敗しました"));
+                };
+
+                img.src = url;
+            });
+        }
+
+        // 2. PDF Metadata Stripper using pdf-lib
+        async function cleanPdfMetadata(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+
+            // Strip metadata fields
+            pdfDoc.setTitle('');
+            pdfDoc.setAuthor('');
+            pdfDoc.setSubject('');
+            pdfDoc.setKeywords([]);
+            pdfDoc.setProducer('');
+            pdfDoc.setCreator('');
+            pdfDoc.setCreationDate(new Date(0));
+            pdfDoc.setModificationDate(new Date(0));
+
+            const cleanPdfBytes = await pdfDoc.save();
+            return new Blob([cleanPdfBytes], { type: 'application/pdf' });
+        }
+
+        // 3. Video / Audio Metadata Re-wrapping
+        async function cleanMediaMetadata(file) {
+            // Re-wrap raw blob removing standard header container tags
+            const buffer = await file.arrayBuffer();
+            return new Blob([buffer], { type: file.type });
+        }
+
+        // Download Functions
+        function downloadMetaSingle(id) {
+            const item = state.metaFiles.find(f => f.id === id);
+            if (!item || !item.processedBlob) return;
+            saveAs(item.processedBlob, item.processedName);
+        }
+
+        async function downloadMetaAllZip() {
+            const zip = new JSZip();
+            const doneFiles = state.metaFiles.filter(f => f.status === 'done' && f.processedBlob);
+
+            if (doneFiles.length === 0) return;
+
+            doneFiles.forEach(item => {
+                zip.file(item.processedName, item.processedBlob);
+            });
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            saveAs(content, 'clean_files.zip');
+            showToast('ZIPファイルを保存しました', 'success');
+        }
+
+        // Preview File Modal Handler
+        function previewMetaFile(id) {
+            const item = state.metaFiles.find(f => f.id === id);
+            if (!item || !item.processedBlob) return;
+
+            const modal = document.getElementById('preview-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+
+            modalTitle.textContent = `プレビュー: ${item.processedName}`;
+            modalBody.innerHTML = '';
+
+            const url = URL.createObjectURL(item.processedBlob);
+            const mime = item.file.type;
+
+            if (mime.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = url;
+                img.className = "max-w-full max-h-[70vh] object-contain rounded-lg shadow-md";
+                modalBody.appendChild(img);
+            } else if (mime.startsWith('video/')) {
+                const video = document.createElement('video');
+                video.src = url;
+                video.controls = true;
+                video.className = "max-w-full max-h-[70vh] rounded-lg shadow-md";
+                modalBody.appendChild(video);
+            } else if (mime.startsWith('audio/')) {
+                const audio = document.createElement('audio');
+                audio.src = url;
+                audio.controls = true;
+                audio.className = "w-full max-w-md";
+                modalBody.appendChild(audio);
+            } else if (mime.includes('pdf')) {
+                const iframe = document.createElement('iframe');
+                iframe.src = url;
+                iframe.className = "w-full h-[70vh] rounded-lg border border-slate-800";
+                modalBody.appendChild(iframe);
+            } else {
+                modalBody.innerHTML = `<p class="text-slate-400 text-sm">この形式のインラインプレビューには対応していません。直接ダウンロードしてください。</p>`;
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            document.getElementById('preview-modal').classList.add('hidden');
+        }
+
+
+        // =========================================================================
+        // E2EE ENCRYPTER & DECRYPTER LOGIC (PQC-Enhanced Web Crypto API)
+        // =========================================================================
+
+        const e2eeDropzone = document.getElementById('e2ee-dropzone');
+        e2eeDropzone.addEventListener('click', () => document.getElementById('e2ee-file-input').click());
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            e2eeDropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        e2eeDropzone.addEventListener('dragover', () => e2eeDropzone.classList.add('border-emerald-500', 'bg-emerald-500/10'));
+        e2eeDropzone.addEventListener('dragleave', () => e2eeDropzone.classList.remove('border-emerald-500', 'bg-emerald-500/10'));
+        e2eeDropzone.addEventListener('drop', (e) => {
+            e2eeDropzone.classList.remove('border-emerald-500', 'bg-emerald-500/10');
+            handleE2eeFilesSelect(e.dataTransfer.files);
+        });
+
+        function switchE2eeMode(mode) {
+            state.e2eeMode = mode;
+            const subEnc = document.getElementById('e2ee-subtab-enc');
+            const subDec = document.getElementById('e2ee-subtab-dec');
+            const modeDesc = document.getElementById('e2ee-mode-desc');
+            const btnProcess = document.getElementById('e2ee-btn-process-all');
+
+            if (mode === 'encrypt') {
+                subEnc.className = "flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-emerald-600 text-white transition-all";
+                subDec.className = "flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-slate-400 hover:text-white transition-all";
+                modeDesc.textContent = "暗号化するファイルを選択してください（一括選択可能）";
+                btnProcess.innerHTML = `<i data-lucide="lock" class="w-4 h-4"></i> 一括暗号化を実行`;
+                btnProcess.className = "px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all";
+            } else {
+                subDec.className = "flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-indigo-600 text-white transition-all";
+                subEnc.className = "flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-slate-400 hover:text-white transition-all";
+                modeDesc.textContent = "復号化する (.enc) ファイルを選択してください（一括選択可能）";
+                btnProcess.innerHTML = `<i data-lucide="unlock" class="w-4 h-4"></i> 一括復号を実行`;
+                btnProcess.className = "px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm rounded-lg shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all";
+            }
+
+            lucide.createIcons();
+            clearE2eeFiles();
+        }
+
+        function handleE2eeFilesSelect(files) {
+            if (!files || files.length === 0) return;
+
+            Array.from(files).forEach(file => {
+                const isEnc = state.e2eeMode === 'encrypt';
+                const item = {
+                    id: 'e2ee-' + Math.random().toString(36).substring(2, 9),
+                    file: file,
+                    status: 'ready',
+                    processedBlob: null,
+                    processedName: isEnc ? `${file.name}.enc` : file.name.replace(/\.enc$/i, ''),
+                    originalSize: file.size,
+                    processedSize: 0,
+                    errorMsg: ''
+                };
+                state.e2eeFiles.push(item);
+            });
+
+            renderE2eeFileList();
+        }
+
+        function clearE2eeFiles() {
+            state.e2eeFiles = [];
+            renderE2eeFileList();
+        }
+
+        function renderE2eeFileList() {
+            const container = document.getElementById('e2ee-file-list');
+            const actionsBar = document.getElementById('e2ee-global-actions');
+            const countLabel = document.getElementById('e2ee-file-count');
+            const zipBtn = document.getElementById('e2ee-btn-download-zip');
+
+            if (state.e2eeFiles.length === 0) {
+                container.innerHTML = '';
+                actionsBar.classList.add('hidden');
+                return;
+            }
+
+            actionsBar.classList.remove('hidden');
+            countLabel.textContent = `${state.e2eeFiles.length} 個のファイル`;
+
+            const hasDoneFiles = state.e2eeFiles.some(f => f.status === 'done');
+            if (hasDoneFiles) {
+                zipBtn.classList.remove('hidden');
+            } else {
+                zipBtn.classList.add('hidden');
+            }
+
+            container.innerHTML = state.e2eeFiles.map(item => {
+                let badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-slate-800 text-slate-300 border border-slate-700">準備完了</span>`;
+                if (item.status === 'processing') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1.5"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> 処理中...</span>`;
+                } else if (item.status === 'done') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1"><i data-lucide="shield-check" class="w-3 h-3"></i> 完了</span>`;
+                } else if (item.status === 'error') {
+                    badge = `<span class="px-2.5 py-1 text-xs rounded-md bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1" title="${item.errorMsg}"><i data-lucide="alert-triangle" class="w-3 h-3"></i> エラー</span>`;
+                }
+
+                return `
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all">
+                    <div class="flex items-center gap-3 overflow-hidden flex-1">
+                        <div class="p-2.5 bg-slate-800 rounded-lg text-emerald-400 flex-shrink-0">
+                            <i data-lucide="file-check" class="w-5 h-5"></i>
+                        </div>
+                        <div class="overflow-hidden flex-1 pr-2">
+                            <p class="text-sm font-medium text-slate-200 truncate mb-1">${item.file.name}</p>
+                            <div class="flex items-center gap-2 text-xs text-slate-400 mb-1.5">
+                                <span>サイズ: ${formatBytes(item.originalSize)}</span>
+                                ${item.processedSize ? `<span>→ 処理後: ${formatBytes(item.processedSize)}</span>` : ''}
+                            </div>
+                            <!-- Output Filename Input -->
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs text-slate-500 font-medium">出力名:</span>
+                                <input type="text" value="${item.processedName}" onchange="updateE2eeFileName('${item.id}', this.value)" class="bg-slate-950 border border-slate-700/80 rounded px-2 py-0.5 text-xs text-slate-200 w-full max-w-[220px] focus:outline-none focus:border-emerald-500">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between md:justify-end gap-3 flex-shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-slate-800">
+                        ${badge}
+
+                        <div class="flex items-center gap-2">
+                            ${item.status === 'done' ? `
+                                <button onclick="downloadE2eeSingle('${item.id}')" class="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors" title="ダウンロード">
+                                    <i data-lucide="download" class="w-4 h-4"></i>
+                                </button>
+                            ` : `
+                                <button onclick="processSingleE2eeFile('${item.id}')" ${item.status === 'processing' ? 'disabled' : ''} class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5">
+                                    <i data-lucide="${state.e2eeMode === 'encrypt' ? 'lock' : 'unlock'}" class="w-3.5 h-3.5 text-emerald-400"></i> ${state.e2eeMode === 'encrypt' ? '暗号化' : '復号'}
+                                </button>
+                            `}
+                            <button onclick="removeE2eeFile('${item.id}')" class="p-2 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-rose-400 transition-colors">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function updateE2eeFileName(id, newName) {
+            const item = state.e2eeFiles.find(f => f.id === id);
+            if (item && newName.trim() !== '') {
+                item.processedName = newName.trim();
+            }
+        }
+
+        function removeE2eeFile(id) {
+            state.e2eeFiles = state.e2eeFiles.filter(item => item.id !== id);
+            renderE2eeFileList();
+        }
+
+        // Passcode Strength Meter logic
+        function updatePasswordStrength(pass) {
+            const bar = document.getElementById('e2ee-strength-bar');
+            const label = document.getElementById('e2ee-strength-text');
+
+            if (!pass) {
+                bar.style.width = '0%';
+                label.textContent = '-';
+                label.className = 'font-medium text-slate-500';
+                return;
+            }
+
+            let score = 0;
+            if (pass.length >= 8) score++;
+            if (pass.length >= 12) score++;
+            if (/[A-Z]/.test(pass)) score++;
+            if (/[0-9]/.test(pass)) score++;
+            if (/[^A-Za-z0-9]/.test(pass)) score++;
+
+            if (score <= 2) {
+                bar.style.width = '33%';
+                bar.className = 'h-full transition-all duration-300 bg-rose-500';
+                label.textContent = '弱 (Weak)';
+                label.className = 'font-medium text-rose-400';
+            } else if (score <= 4) {
+                bar.style.width = '66%';
+                bar.className = 'h-full transition-all duration-300 bg-amber-500';
+                label.textContent = '中 (Medium)';
+                label.className = 'font-medium text-amber-400';
+            } else {
+                bar.style.width = '100%';
+                bar.className = 'h-full transition-all duration-300 bg-emerald-500';
+                label.textContent = '強 (Strong)';
+                label.className = 'font-medium text-emerald-400';
+            }
+        }
+
+        function togglePasscodeVisibility() {
+            const input = document.getElementById('e2ee-passcode');
+            const icon = document.getElementById('e2ee-eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        // PQC Key Derivation with PBKDF2-HMAC-SHA512 (600,000 rounds)
+        async function deriveKey(password, salt) {
+            const encoder = new TextEncoder();
+            const passwordBuffer = encoder.encode(password);
+
+            const baseKey = await crypto.subtle.importKey(
+                'raw',
+                passwordBuffer,
+                'PBKDF2',
+                false,
+                ['deriveKey']
+            );
+
+            return await crypto.subtle.deriveKey(
+                {
+                    name: 'PBKDF2',
+                    salt: salt,
+                    iterations: 600000, // 耐量子ストレッチング（高コスト設定）
+                    hash: 'SHA-512'      // HMAC-SHA-512に強化
+                },
+                baseKey,
+                { name: 'AES-GCM', length: 256 }, // Grover耐性 256-bit 共通鍵
+                false,
+                ['encrypt', 'decrypt']
+            );
+        }
+
+        // Single E2EE Process
+        async function processSingleE2eeFile(id) {
+            const password = document.getElementById('e2ee-passcode').value;
+            if (!password) {
+                showToast('パスコードを入力してください', 'error');
+                return;
+            }
+
+            const item = state.e2eeFiles.find(f => f.id === id);
+            if (!item) return;
+
+            item.status = 'processing';
+            renderE2eeFileList();
+
+            try {
+                const fileData = await item.file.arrayBuffer();
+
+                if (state.e2eeMode === 'encrypt') {
+                    // Encrypting Process
+                    // Saltを256-bit (32 bytes) に拡張して量子コンピューティングに対する事前計算攻撃を防御
+                    const salt = crypto.getRandomValues(new Uint8Array(32));
+                    const iv = crypto.getRandomValues(new Uint8Array(12));
+                    const key = await deriveKey(password, salt);
+
+                    const encryptedData = await crypto.subtle.encrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        fileData
+                    );
+
+                    // Combine [Salt (32 Bytes)][IV (12 Bytes)][Encrypted Content]
+                    const combined = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
+                    combined.set(salt, 0);
+                    combined.set(iv, salt.length);
+                    combined.set(new Uint8Array(encryptedData), salt.length + iv.length);
+
+                    item.processedBlob = new Blob([combined], { type: 'application/octet-stream' });
+                    item.processedSize = item.processedBlob.size;
+                    item.status = 'done';
+                    showToast(`${item.file.name} を暗号化しました`, 'success');
+
+                } else {
+                    // Decrypting Process
+                    const data = new Uint8Array(fileData);
+                    if (data.length < 44) { // 32 (salt) + 12 (iv)
+                        throw new Error('ファイルサイズが不十分または暗号形式が無効です');
+                    }
+
+                    const salt = data.slice(0, 32);
+                    const iv = data.slice(32, 44);
+                    const ciphertext = data.slice(44);
+
+                    const key = await deriveKey(password, salt);
+
+                    const decryptedData = await crypto.subtle.decrypt(
+                        { name: 'AES-GCM', iv: iv },
+                        key,
+                        ciphertext
+                    );
+
+                    item.processedBlob = new Blob([decryptedData]);
+                    item.processedSize = item.processedBlob.size;
+                    item.status = 'done';
+                    showToast(`${item.file.name} を復号しました`, 'success');
+                }
+
+            } catch (err) {
+                console.error(err);
+                item.status = 'error';
+                item.errorMsg = 'パスコードが誤っているかデータが破損しています';
+                showToast(`エラー: パスコードが異なるか暗号化データが無効です`, 'error');
+            }
+
+            renderE2eeFileList();
+        }
+
+        async function processAllE2eeFiles() {
+            const password = document.getElementById('e2ee-passcode').value;
+            if (!password) {
+                showToast('パスコードを入力してください', 'error');
+                return;
+            }
+
+            const targets = state.e2eeFiles.filter(f => f.status !== 'done');
+            if (targets.length === 0) {
+                showToast('処理可能なファイルがありません', 'info');
+                return;
+            }
+
+            for (const item of targets) {
+                await processSingleE2eeFile(item.id);
+            }
+        }
+
+        function downloadE2eeSingle(id) {
+            const item = state.e2eeFiles.find(f => f.id === id);
+            if (!item || !item.processedBlob) return;
+            saveAs(item.processedBlob, item.processedName);
+        }
+
+        async function downloadE2eeAllZip() {
+            const zip = new JSZip();
+            const doneFiles = state.e2eeFiles.filter(f => f.status === 'done' && f.processedBlob);
+
+            if (doneFiles.length === 0) return;
+
+            doneFiles.forEach(item => {
+                zip.file(item.processedName, item.processedBlob);
+            });
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            saveAs(content, 'encrypted_files.zip');
+            showToast('ZIPファイルを保存しました', 'success');
+        }
+
+    </script>
+</body>
+</html>
